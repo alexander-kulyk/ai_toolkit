@@ -1,0 +1,4 @@
+interface:
+  display_name: "Strategy Registries"
+  short_description: "Design and refactor extensible behavior registries"
+  default_prompt: "Use $strategy-registries to analyze this branching logic and propose a safe, reusable registry design."
