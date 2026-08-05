@@ -35,7 +35,7 @@ Sub-agent definitions (role, tools, workflow).
 
 | Agent | Purpose |
 | ----- | ------- |
-| [`research-planner`](agents/research-planner.md) | Two-phase, human-gated: produces a Research Report, then (on approval) a staged implementation plan. Never edits source. |
+| [`research-planner`](agents/research-planner.md) | Autonomously researches requirements, then writes a report, implementation plan, and estimated task decomposition. Never implements the change. |
 | [`executor`](agents/executor.md) | Plan-driven implementation executor — runs one stage per run, verifies at the plan's gate, does not commit. |
 | [`verifier`](agents/verifier.md) | Read-only stage verifier — grades the uncommitted stage changes against the plan's gate and gates the commit. |
 
@@ -50,6 +50,7 @@ Reusable commands executed by AI agents (slash commands where supported).
 | [`install`](commands/install.md) | Install the latest version of known packages with `--legacy-peer-deps`. |
 | [`pr`](commands/pr.md) | Generate a PR title and Markdown description from the current branch's commits. |
 | [`projects`](commands/projects.md) | Show the numbered project map shared by `branch` / `commit` / `install` / `pr`. |
+| [`research-plan`](commands/research-plan.md) | Run `research-planner` from supplied requirements and generate the report, plan, and task artifacts under `specs/`. |
 | [`setup`](commands/setup.md) | Configure the project locally from scratch by running the `spdms-local-setup` skill. |
 
 ### Prompts — `prompts/`
