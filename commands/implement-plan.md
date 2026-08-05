@@ -1,213 +1,354 @@
 ---
 name: implement-plan
-description: Orchestrate a user-supplied implementation plan stage by stage — executor → verifier loop, commit and push each stage on a green light, stop and ask on a critical issue
-argument-hint: '"<plan-path>" [from N | stage N | stages N-M]'
+description: Execute a specification package or standalone implementation plan stage by stage through an executor-verifier loop, creating verified local commits with optional pushing
+argument-hint: '"<spec-package-or-plan-path>" [from N | stage N | stages N-M] [--push]'
 disable-model-invocation: true
 ---
 
-Drive an implementation plan to completion, one stage at a time, using the `executor` and
-`verifier` sub-agents.
+Implement a reviewed specification package or standalone implementation plan one
+stage at a time using the named `executor` and `verifier` agents.
 
-Input: $ARGUMENTS MUST contain exactly one **plan path**, absolute or relative to the current repo
-(e.g. `.claude/plans/2026-07-29-provider-stack-consolidation.md`), followed by at most one
-optional **stage selector**:
+This command is an orchestrator. It does not research, redesign, implement, or
+verify the change itself. It resolves the planning artifacts, fixes the execution
+order, dispatches one implementation unit at a time, gates each unit through an
+independent verifier, and creates a local commit only after a green light.
 
-- no selector — run every not-yet-completed stage in plan order,
-- `from 3` — run Stage 3 and every later stage,
-- `stage 3` — run only Stage 3,
-- `stages 3-5` — run only that inclusive, contiguous range.
+## Input
 
-Example: `.claude/plans/2026-07-22-flows-refactoring-plan.md from 2`
-Quote paths that contain spaces. A selector limits the requested run; it does NOT authorize skipping
-unfinished predecessors or dependencies.
+`$ARGUMENTS` must contain exactly one quoted or unquoted source path followed by
+at most one stage selector and the optional `--push` flag.
 
-**Your role is ORCHESTRATOR only.** You do not write, edit or fix source code, and you do not
-verify the work yourself — those are the `executor`'s and `verifier`'s jobs. Your own actions are
-limited to: reading the plan, dispatching the two agents, running git commands, and deciding
-whether to continue or stop.
+The source path may be:
 
----
+1. A specification-package directory containing:
 
-## Phase A — Preflight (once, before any stage)
-
-1. **Resolve the required plan path.** Parse one plan path and at most one valid selector from
-   $ARGUMENTS. Resolve a relative path from the current repo and canonicalize it to an absolute path.
-   If the path is absent, ambiguous, not a readable Markdown file, or leaves unrecognized arguments,
-   STOP and report the expected invocation syntax. Never guess or select a plan automatically.
-2. **Read the whole plan** — not just the stage you start at. Extract:
-   - the ordered stage list (plans use `Stage <N>` or `Phase <N>` headings, sometimes sub-stages
-     like `1b`), and each stage's exact heading text,
-   - per stage: goal, changes, acceptance criteria, **gate** commands, **footguns / Do NOT**,
-     depends-on, rollback, and the **target repo** if the stage names one (e.g. `(host)` /
-     `(package)`),
-   - plan-wide sections: `Footguns / Do NOT`, `Verification Loop`, `Rollback Strategy`,
-     `Out of scope`, `Definition of done`.
-3. **Fix the execution order.** Default is **strict document order, one stage at a time**. Apply the
-   optional selector exactly as defined above, but treat it only as run scope: every predecessor or
-   dependency outside the selection must already have a verified resume-marker commit, unless the
-   plan explicitly authorizes it to remain unfinished. Deviate
-   ONLY when the plan explicitly authorizes it (a `Depends on:` graph, "may run in parallel with…",
-   "Stage 5 may run before Stage 2", "stages are independent"). When you deviate, quote the plan
-   line that authorizes it in your run summary. If the wording is ambiguous, stay strictly
-   sequential.
-   - Never run two `executor` agents concurrently against the same working tree: the `verifier`
-     grades the **uncommitted diff**, and two stages in flight are indistinguishable in it. If the
-     plan demands true parallelism, STOP and ask (options: sequentialize, or split into separate
-     git worktrees).
-4. **Check each target repo** (the current one, plus any other repo the plan's stages name):
-   - `pwd`, `git status --short`, `git branch --show-current`.
-   - Working tree must be **clean**. If not, STOP and ask (commit first / stash / abort).
-   - Resolve the default branch from `refs/remotes/origin/HEAD`; only if unavailable, fall back to
-     checking `dev`, `main`, and `master`. If currently on that branch, STOP and ask whether to create
-     a feature branch (`/branch`) or deliberately proceed on the default branch.
-   - Note whether an upstream exists: `git rev-parse --abbrev-ref --symbolic-full-name @{u}`.
-5. **Detect prior progress in every target repo** (resume support):
-   `git log --oneline --fixed-strings --grep="Plan: <plan file basename>"`. Map each exact marker to
-   its stage and repo. Validate the selector's predecessors/dependencies now; if any required one is
-   unfinished, STOP and report it instead of skipping it. Report completed stages and the first
-   selected stage to run.
-6. **Show the run summary and ask for ONE go-ahead**: plan path, ordered stage list with target
-   repo/branch, each stage's gate commands, the starting stage, and any authorized reordering.
-   After this single confirmation you run autonomously — you do NOT ask again between stages.
-
----
-
-## Phase B — Per-stage loop
-
-For each stage, in the fixed order:
-
-1. **Dispatch the named `executor` sub-agent in the foreground** (never in the background; you need
-   its final result before continuing):
-
-   ```
-   Working directory: <absolute repo path for this stage>
-   Implementation plan (source of truth): <absolute plan path>
-   Execute ONLY: <exact stage heading, e.g. "## Phase 3 — Fix the host-side instability sources (host)">
-
-   Read the repo's CLAUDE.md first, then this stage in the plan in full.
-   The Working directory above is authoritative. Use absolute paths for every Read/Edit/Write call.
-   Every Bash call must set that directory explicitly (`cd "<absolute repo path>" && <command>`);
-   never rely on a previous `cd` persisting.
-   Follow this stage's steps, gate, footguns and "Do NOT" list exactly. Do NOT apply rules
-   from any other stage. Do NOT commit — leave the working tree changed but uncommitted.
-   Run this stage's gate commands verbatim and report each command with its real result.
-   [On a re-run only:] Fix exactly these verifier blockers, nothing else:
-   <verifier blockers, verbatim>
+   ```text
+   report/research-report.md
+   plan/implementation-plan.md
+   tasks/tasks.md
    ```
 
-2. **Read the executor's final report.** If the sub-agent was interrupted, cut off, returned only a
-   partial result, reports **Critical issues**, or reports a **failed gate** it could not resolve in
-   scope → go to Phase D. Never infer success from a partial report.
+2. A standalone readable Markdown implementation-plan file. If that file belongs
+   to the standard package structure above, automatically load and require its
+   sibling report and task artifacts. Otherwise, run from the plan alone.
 
-3. **Dispatch the named `verifier` sub-agent in the foreground** only after the executor finishes:
+Selectors:
 
+- no selector — run every unfinished stage in plan order;
+- `from N` — run Stage N and every later stage;
+- `stage N` — run only Stage N;
+- `stages N-M` — run only that inclusive, contiguous range.
+
+`--push` is independent of the selector and may appear before or after it. Without
+`--push`, verified stage commits remain local. With `--push`, push each verified
+stage commit to the current branch.
+
+Examples:
+
+```text
+/implement-plan specs/add-calendar
+/implement-plan specs/add-calendar stage 2
+/implement-plan specs/add-calendar/plan/implementation-plan.md from 3
+/implement-plan "specs/improve search" stages 2-4 --push
+```
+
+A selector limits the requested run; it never authorizes skipping an unfinished
+dependency.
+
+If the source path is absent or ambiguous, the selector is malformed, or other
+arguments remain, stop and show the accepted syntax. Never guess which plan to
+execute.
+
+## Source-of-truth precedence
+
+When a complete specification package is available, use all three artifacts with
+this precedence:
+
+1. **Implementation plan** — authoritative for scope, design, stage boundaries,
+   dependencies, guardrails, rollback, and overall definition of done.
+2. **Task decomposition** — authoritative for the concrete tasks, deliverables,
+   task dependencies, task acceptance criteria, and estimates within each stage.
+3. **Research report** — supporting context for requirements, evidence, risks,
+   edge cases, assumptions, and design rationale.
+
+The prompt's stage selector controls execution scope and overrides only which
+eligible stages run. It does not override artifact requirements or dependencies.
+
+If the artifacts contradict one another, contain unresolved placeholders, map a
+task to a nonexistent stage, or leave the requested stage without objective
+validation, stop before implementation. Report the exact conflict and recommend
+updating the specification package. Do not reconcile planning artifacts inside
+this command.
+
+For a standalone plan, that plan is the only source of truth and must contain all
+information needed for safe execution.
+
+## Phase A — Resolve and validate the work
+
+1. Parse `$ARGUMENTS` into one source path, zero or one selector, and the optional
+   `--push` flag. Preserve quoted paths containing spaces.
+2. Resolve the source from the current working directory and canonicalize it to
+   an absolute path. Reject missing, unreadable, or ambiguous sources.
+3. Resolve the artifacts:
+   - for a package directory, require the exact three files in the standard
+     structure;
+   - for a standard-package plan file, derive and require its sibling report and
+     task files; and
+   - for any other plan file, use it as a standalone plan and do not invent
+     sibling paths.
+4. Resolve the Git working-tree root containing the plan. The plan and every
+   package artifact must be inside the same working tree. This command requires
+   Git because stage isolation, verification, resume detection, and atomic stage
+   commits depend on it. If no Git working tree contains the plan, stop and
+   explain this requirement.
+5. Compute a stable, project-relative **plan ID**:
+   - for a standard package, use the package directory relative to the working
+     tree root; or
+   - for a standalone plan, use the plan file path relative to the working-tree
+     root.
+
+   Never use only the plan basename: standard packages deliberately reuse
+   `implementation-plan.md`.
+6. Discover and read the applicable project instructions, contribution rules,
+   architecture guidance, skills, and version-control conventions. Do not assume
+   any particular instruction filename, documentation path, operating system,
+   shell, language, framework, package manager, default branch name, remote, or
+   generated-output directory.
+7. Read every resolved planning artifact in full. Extract and cross-check:
+   - ordered stage identifiers and exact headings;
+   - goals, requirements, dependencies, affected areas, and changes;
+   - acceptance criteria, validation actions, expected outcomes, risks,
+     mitigations, rollback, and `Do not` guardrails;
+   - tasks belonging to each stage, including their dependencies, deliverables,
+     acceptance criteria, and validation;
+   - requirements-to-stage and requirements-to-task traceability;
+   - cross-cutting concerns, out-of-scope items, and overall definition of done;
+     and
+   - high-impact assumptions or unknowns that must be validated before dependent
+     work begins.
+8. Treat a plan's `Validation` section and a task's validation checks as the gate
+   for that execution unit. A stage is not executable unless its combined checks
+   are objective and runnable or explicitly define a manual observation with a
+   responsible verifier.
+9. Validate the dependency graph. Reject missing dependencies, cycles, duplicate
+   stage or task identifiers, unmapped required tasks, and selector ranges that
+   do not match the plan. Default to strict document order whenever ordering is
+   ambiguous.
+10. Keep execution inside the resolved working tree. If a stage requires changes
+    in another repository or working tree, stop and ask for a separate invocation
+    or an explicitly prepared multi-worktree workflow. Never infer sibling
+    repository locations.
+
+## Phase B — Repository preflight and resume detection
+
+1. In the resolved working-tree root, inspect:
+   - the current branch and whether `HEAD` is detached;
+   - complete tracked, staged, untracked, and submodule status;
+   - remotes and upstream configuration when `--push` was requested; and
+   - the repository's configured default branch when it can be determined from
+     local references without guessing names.
+2. Require a clean working tree before the first stage. This includes the
+   specification package: planning artifacts must be committed before they can
+   act as an immutable implementation source of truth. If any change exists,
+   stop and list it. Do not stash, discard, stage, or commit pre-existing work.
+3. Stop on a detached `HEAD`. If the current branch is known to be the default
+   branch, show that fact and request an explicit choice to create/use a feature
+   branch or deliberately continue. Do not create or switch branches
+   automatically.
+4. If `--push` was requested, require a configured remote and confirm the exact
+   destination branch. A missing upstream is allowed only if the eventual push
+   can safely establish one without overwriting remote history.
+5. Detect prior stage completion on the current branch using exact commit-body
+   markers:
+
+   ```text
+   Plan-ID: <project-relative plan ID>
+   Plan-Stage: <stage identifier> — <stage title>
    ```
-   Working directory: <absolute repo path for this stage>
-   Implementation plan (source of truth): <absolute plan path>
-   Verify ONLY: <exact stage heading>
 
-   The stage's changes are in the working tree, UNCOMMITTED. Review that diff only.
-   The Working directory above is authoritative. Use absolute paths for every Read call and set it
-   explicitly in every Bash call (`cd "<absolute repo path>" && <command>`).
-   Inspect `git diff HEAD` plus the full contents of every untracked file reported by
-   `git status --short --untracked-files=all`; plain `git diff` is not sufficient.
-   Grade against this stage's gate criteria, acceptance checklist, footguns and "Do NOT" list —
-   not a generic ideal and not another stage. Run this stage's gate commands yourself.
-   Executor's report:
-   <executor report, verbatim>
+   Inspect matching commits rather than accepting a subject-line coincidence.
+   A marker from another plan, branch, or working tree does not count.
+6. Mark stages complete only when their exact marker is reachable from the
+   current `HEAD` and no later history clearly reverted that stage. Validate that
+   every selected stage's predecessors and declared dependencies are complete or
+   included earlier in the current run.
+7. Fix the execution order before making changes:
+   - run selected unfinished stages sequentially in dependency-safe order;
+   - skip an already completed selected stage and report its commit;
+   - never execute two agents concurrently against the same working tree; and
+   - treat plan-authorized parallelism only as permission to choose a safe serial
+     order unless separate working trees were explicitly prepared outside this
+     command.
+8. Show one preflight summary containing:
+   - project root, current branch, and push mode;
+   - plan ID and resolved artifact paths;
+   - selected stages, completed stages, and execution order;
+   - tasks and gate checks for each stage to be run;
+   - high-impact assumptions scheduled for validation; and
+   - the fact that every green stage creates one local commit.
+
+Ask for one go-ahead. That approval authorizes the listed implementation work,
+validation commands, local stage commits, and pushes only when `--push` was
+explicitly supplied. Afterward, continue without pausing unless Phase E is
+triggered.
+
+## Phase C — Executor and verifier loop
+
+For each selected unfinished stage, in the fixed order:
+
+1. Dispatch the named `executor` agent in the foreground with:
+
+   ```text
+   Working tree root: <absolute path>
+   Plan ID: <project-relative plan ID>
+   Research report: <absolute path or "not provided">
+   Implementation plan: <absolute path>
+   Task decomposition: <absolute path or "not provided">
+   Execute only: <exact stage identifier and heading>
+   Included tasks: <task IDs and titles for this stage, or "defined by the plan">
+
+   Discover and follow all applicable project instructions and skills. Read the
+   complete current plan stage and every included task before editing. Use the
+   implementation plan for scope and design, the task artifact for execution
+   detail, and the report only for supporting rationale. Stop on any conflict.
+
+   Work only inside the supplied working tree and only on the current stage.
+   Follow its dependencies, acceptance criteria, validation, rollback,
+   mitigations, and Do-not guardrails. Do not start another stage and do not edit
+   any planning artifact.
+
+   Run the stage and task validation checks exactly as written and report the
+   real results. Do not commit. Leave only this stage's implementation changes in
+   the working tree for independent verification.
+
+   <On a retry only: fix exactly these verifier blockers, quoted verbatim.>
+   ```
+2. Read the complete executor report. Treat the run as blocked if it is partial,
+   interrupted, claims unrun validation passed, reports an unresolved failure, or
+   requests changes outside the current stage.
+3. Confirm that the working tree contains changes before verification. If the
+   executor reports success with no diff, accept that only when the stage is
+   explicitly validation-only and its plan defines that expected outcome.
+4. Dispatch the named `verifier` agent in the foreground with:
+
+   ```text
+   Working tree root: <absolute path>
+   Plan ID: <project-relative plan ID>
+   Research report: <absolute path or "not provided">
+   Implementation plan: <absolute path>
+   Task decomposition: <absolute path or "not provided">
+   Verify only: <exact stage identifier and heading>
+   Included tasks: <task IDs and titles for this stage, or "defined by the plan">
+
+   The stage changes are uncommitted. Discover and follow the applicable project
+   instructions. Inspect the complete tracked and untracked diff, including the
+   full contents of new files. Verify only this stage against the plan scope,
+   included task deliverables, requirements, acceptance criteria, validation,
+   rollback constraints, risks, and Do-not guardrails.
+
+   Run the exact non-destructive validation checks yourself. Do not rely on the
+   executor's claims, edit files, commit, or review unrelated future stages.
+
+   Executor report:
+   <executor report verbatim>
+   ```
+5. Act only on the verifier's explicit verdict:
+   - **GREEN LIGHT** — continue to Phase D for this stage.
+   - **RETURN TO EXECUTOR** — send the blockers verbatim to the executor, then
+     re-run the verifier. Allow at most three fix-and-verify rounds after the
+     initial verification.
+   - **Critical issue or ambiguous verdict** — go to Phase E.
+6. The orchestrator never patches code, relaxes a gate, reclassifies a blocker,
+   or silently expands stage scope.
+
+## Phase D — Create the verified stage commit
+
+Run this phase only after an explicit verifier green light.
+
+1. Inspect complete tracked, staged, and untracked changes. Confirm every changed
+   path belongs to the current stage and was reviewed by the verifier.
+2. Exclude files prohibited by project rules, ignored/generated artifacts,
+   caches, local environment files, credentials, secrets, and unrelated changes.
+   If expected source and lock or metadata files are inconsistent, or any path is
+   uncertain, go to Phase E.
+3. Stage only the exact validated paths. Never use an unscoped stage-all command.
+   Inspect the complete staged diff and staged path list, then confirm no intended
+   stage change remains unstaged or untracked.
+4. Create one commit following the repository's documented commit convention. If
+   none exists, use a concise Conventional Commit subject appropriate to the
+   actual change. Include these exact body markers:
+
+   ```text
+   Plan-ID: <project-relative plan ID>
+   Plan-Stage: <stage identifier> — <stage title>
+   ```
+   If the stage is explicitly validation-only and correctly produced no diff,
+   create an intentional empty marker commit after the verifier's green light so
+   resume detection remains deterministic. Never use an empty commit to hide a
+   missing implementation diff.
+5. If the commit fails or hooks modify files outside the verified diff, go to
+   Phase E. Never bypass hooks.
+6. When `--push` is absent, keep the commit local. When `--push` is present, push
+   normally to the confirmed current branch, establishing its upstream only when
+   necessary. Never force-push, rewrite history, or switch destinations.
+7. Confirm the stage commit is reachable from `HEAD`, the marker is present, and
+   the working tree is clean before starting the next stage. Report:
+
+   ```text
+   Stage <ID> complete — <short commit ID> — <gate result> — <verifier rounds>
    ```
 
-4. **Act on the verdict:**
-   - **GREEN LIGHT** → go to Phase C (commit + push), then move to the next stage.
-   - **RETURN TO EXECUTOR** → re-dispatch the `executor` with the blockers verbatim (step 1), then
-     re-verify (step 3). Count the rounds: **max 3 fix rounds per stage**. If the 3rd fix round
-     still does not produce a green light → Phase D.
-   - **Critical issues** flagged by either agent → Phase D.
+## Phase E — Stop on a critical issue
 
-5. Never patch the code yourself to unblock a stuck loop, and never soften a verdict. Three failed
-   rounds is a signal for the user, not a reason to improvise.
+Stop immediately when:
 
----
+- an artifact conflict or dependency problem invalidates the plan;
+- the repository is not safely prepared;
+- an executor or verifier reports a critical issue;
+- validation cannot pass without out-of-scope work;
+- three fix-and-verify rounds do not reach a green light;
+- the changed or staged paths contain unexpected, generated, sensitive, or
+  unreviewed content;
+- a commit, hook, or requested push fails; or
+- resolving the problem would alter the plan's design or later stages.
 
-## Phase C — Commit and push (ONLY on a green light)
+Report:
 
-1. `git status --short --untracked-files=all` in that stage's repo. Confirm every changed path
-   matches what the stage was supposed to touch. Inspect the complete diff, including every
-   untracked file. **Never stage generated or ignored output** (`build/`, `lib/`, `dist/`, `release/`,
-   `solution/`, `temp/`, `coverage/`, `*.scss.ts`, `.yalc/`, `node_modules/`). If unexpected or
-   prohibited files appear → Phase D.
-2. Stage only the validated paths with `git add -A -- <validated-path>...`; never run bare
-   `git add -A`. Then inspect `git diff --cached --name-status`, the complete cached diff, and
-   `git diff --cached --stat`. Confirm no prohibited/unexpected path is staged and no intended stage
-   change remains unstaged or untracked. Keep `package.json` and `package-lock.json` in sync if the
-   stage changed dependencies. Any mismatch → Phase D.
-3. Write ONE Conventional Commit message using these rules (types:
-   `feat`, `fix`, `chore`, `docs`, `refactor`; lowercase noun scope; imperative lowercase
-   description). The body MUST contain this resume marker as its own line — keep the `Plan:`
-   prefix exact, it is what Phase A step 5 greps for:
+- what happened, with concrete command or source evidence;
+- why it blocks the current stage;
+- the impact on later stages;
+- two to four distinct options with trade-offs;
+- the plan's rollback option when applicable; and
+- one recommended option.
 
-   ```
-   Plan: <plan file basename> — Stage <N>: <stage name>
-   ```
+Then wait for the user's decision. Preserve the working tree exactly as it is.
+Do not revert, reset, clean, stash, commit, or retry with weaker checks unless the
+user explicitly selects that action.
 
-4. Commit (no confirmation prompt — the verifier's green light is the gate), then push to the
-   **current branch**: `git push`, or `git push -u origin HEAD` when there is no upstream.
-   - If the push is rejected (non-fast-forward, protected branch, auth) → Phase D. **Never
-     force-push**, never rebase or reset without the user's explicit choice.
-5. Confirm the pushed commit is on the current branch and the stage repo is clean. Report one line
-   — `Stage <N> ✅ <short-sha> — <gate result>, <k> verifier round(s)` — and
-   continue to the next stage **without asking**.
+## Phase F — Completion
 
----
+When the selected run finishes, report:
 
-## Phase D — Critical issue: STOP and ask
+- plan ID, project root, branch, and whether commits were pushed;
+- each selected stage, its gate result, verifier rounds, and commit ID;
+- completed and remaining stages;
+- the overall definition of done with evidence only when every stage is complete;
+- deferred, out-of-scope, and non-blocking follow-up items; and
+- the appropriate next step from the project's own delivery workflow.
 
-Triggers: either agent reports Critical issues; a gate cannot pass without an out-of-scope change;
-the plan contradicts the codebase; 3 fix rounds did not reach a green light; unexpected files in
-the diff; a rejected push; a finding whose fix would change later stages or the plan's design; a
-stage targets a repo/branch that is not prepared.
+For a partial selector, say **selected scope completed** rather than claiming the
+whole plan is done. When commits remain local, state that clearly.
 
-Stop the loop immediately and present:
+## Boundaries
 
-- **What happened** — the failing stage, command, or agent finding, with the evidence (command
-  output, agent report excerpt, `file:line`).
-- **Why it blocks** — the concrete consequence.
-- **Impact on the rest of the plan** — which remaining stages this puts at risk, explicitly.
-- **Options** — 2–4 concrete, mutually distinct ways forward, each with its trade-off. Include the
-  plan's rollback for this stage as the safe default when one exists.
-- **Recommendation** — one line.
-
-Then **wait for the user's decision**. Do not act until they choose. Leave the working tree exactly
-as it is — do not revert, stash, or clean unless the user picks that option. Already-committed
-stages stay committed.
-
----
-
-## Phase E — Completion
-
-When the selected run finishes:
-
-- If every plan stage now has a verified, pushed resume-marker commit, report full plan completion:
-
-  - a table of stages: stage, gate result, verifier rounds, commit sha,
-  - the plan's overall **Definition of done**, item by item, with what verified each item,
-  - anything deferred, out of scope, or flagged as a non-blocking follow-up by the verifier,
-  - the suggested next step (`/pr`).
-
-- If the user selected only part of the plan and other stages remain unfinished, report
-  **selected range completed**, list the completed and remaining stages, and do NOT claim the
-  overall Definition of done or suggest `/pr` yet.
-
----
-
-## What NOT to do
-
-- Do not write, edit, or fix source code yourself — dispatch the `executor`. Your only writes are
-  git operations.
-- Do not skip the `verifier`, and do not commit on anything other than an explicit green light.
-- Do not bundle two stages into one commit, or commit a stage in a repo the plan did not name.
-- Do not run stages in parallel or out of order without a plan line that authorizes it, and never
-  two executors against one working tree.
-- Do not edit the plan file, open a PR, force-push, or run destructive git commands.
-- Do not ask for confirmation between stages after the Phase A go-ahead — only Phase D stops you.
-- Do not report a gate as passed on the agents' word alone if their report shows it was not run.
+- Do not implement or verify code in the orchestrator; always use the named
+  agents.
+- Do not execute a plan that is incomplete, contradictory, or missing objective
+  validation.
+- Do not edit the report, plan, or task artifacts during implementation.
+- Do not skip dependencies, stages, task acceptance criteria, or the verifier.
+- Do not run concurrent executors against one working tree.
+- Do not commit without a green light or include unreviewed paths.
+- Do not push unless `--push` was supplied and authorized in preflight.
+- Do not open a pull request, force-push, rewrite history, or run destructive
+  version-control commands.

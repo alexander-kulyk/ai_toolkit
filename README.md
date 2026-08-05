@@ -47,6 +47,7 @@ Reusable commands executed by AI agents (slash commands where supported).
 | ------- | ------- |
 | [`branch`](commands/branch.md) | Create and publish a branch from `dev` (optional project selector). |
 | [`commit`](commands/commit.md) | Stage all changes, generate a Conventional Commit message, and commit. |
+| [`implement-plan`](commands/implement-plan.md) | Execute a specification package or standalone plan through a stage-by-stage executor and verifier workflow, with local commits and optional pushing. |
 | [`install`](commands/install.md) | Install the latest version of known packages with `--legacy-peer-deps`. |
 | [`pr`](commands/pr.md) | Generate a PR title and Markdown description from the current branch's commits. |
 | [`projects`](commands/projects.md) | Show the numbered project map shared by `branch` / `commit` / `install` / `pr`. |
