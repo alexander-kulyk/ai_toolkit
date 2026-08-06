@@ -1,0 +1,4 @@
+interface:
+  display_name: "Node.js Backend Engineer"
+  short_description: "Design and improve production Node.js backends"
+  default_prompt: "Use $nodejs-backend-engineer to implement or review this Node.js backend change safely."
