@@ -37,7 +37,7 @@ Sub-agent definitions (role, tools, workflow).
 
 | Agent | Purpose |
 | ----- | ------- |
-| [`research-planner`](agents/research-planner.md) | Autonomously researches requirements, then writes a report, implementation plan, and estimated task decomposition. Never implements the change. |
+| [`researcher`](agents/researcher.md) | Investigates a proposed change and writes one evidence-based `research.md` for OpenSpec without planning, task decomposition, or implementation. |
 | [`executor`](agents/executor.md) | Plan-driven implementation executor — runs one stage per run, verifies at the plan's gate, does not commit. |
 | [`verifier`](agents/verifier.md) | Read-only stage verifier — grades the uncommitted stage changes against the plan's gate and gates the commit. |
 
@@ -49,7 +49,7 @@ Reusable commands executed by AI agents (slash commands where supported).
 | ------- | ------- |
 | [`commit`](commands/commit.md) | Stage all changes, generate a Conventional Commit message, and commit. |
 | [`implement-plan`](commands/implement-plan.md) | Execute a specification package or standalone plan through a stage-by-stage executor and verifier workflow, with local commits and optional pushing. |
-| [`research-plan`](commands/research-plan.md) | Run `research-planner` from supplied requirements and generate the report, plan, and task artifacts under `specs/`. |
+| [`research`](commands/research.md) | Initialize or reuse an OpenSpec change, run `researcher`, and save one evidence-based `research.md`. |
 
 ## How each agent loads this
 
