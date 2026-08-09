@@ -77,6 +77,71 @@ URL and record the relevant installed or declared version. Prefer official
 documentation, standards, source repositories, and primary research over
 secondary summaries.
 
+## Adaptive evidence budget
+
+Optimize investigation cost by limiting redundant discovery, not by lowering
+the evidence standard. A tool-call count or remaining-turn count is never proof
+that the research is sufficient.
+
+### Evidence-driven tool use
+
+- Before each discovery call, identify the `RQ-*`, risk, conflict, or missing
+  evidence it is intended to resolve. Do not run curiosity-only exploration.
+- Start with one bounded repository-mapping pass. Use its results to select
+  relevant flows and files; do not repeatedly remap the project.
+- Prefer targeted `Glob`, `Grep`, and bounded `Read` ranges over broad directory
+  dumps or reading large files in full. Read a full file only when its complete
+  semantics are relevant. Always read applicable instruction files and selected
+  workflow or skill definitions in full when their rules require it.
+- When Bash is necessary, use precise commands such as scoped `rg -n`, targeted
+  `sed` ranges, or narrow Git queries. Avoid unbounded `find`, full logs, large
+  generated files, and commands whose output is mostly irrelevant.
+- Batch independent checks that answer the same research question into one
+  bounded investigation turn. Keep unrelated questions separate so their
+  evidence remains traceable. For reporting, count one coherent group of tool
+  calls answering the same question as one investigation batch.
+- Maintain a compact evidence ledger of source, location, established fact, and
+  related `RQ-*`. Do not re-read an unchanged source unless a later finding
+  creates a specific new question that requires different lines or context.
+- Reuse already verified project facts across the adversarial review. Do not
+  issue a second command merely to restate evidence in another report section.
+- For a non-blocking research question, use at most two targeted evidence passes
+  by default. If it remains unresolved, label it `Unknown` and state how later
+  work can resolve it instead of widening the search indefinitely.
+
+### Quality escape hatch
+
+Continue beyond the default budget whenever an unresolved question could change:
+
+- authorization, tenant isolation, privacy, or exposed data;
+- destructive behavior, data integrity, migration, or rollback safety;
+- public API or external-contract correctness;
+- compatibility with an existing consumer or active change;
+- a whole-object invariant, concurrency behavior, or failure recovery; or
+- the recommended direction or feasibility of the requested change.
+
+For these high-impact questions, investigate until there is verified evidence, a
+clearly identified decision needed, or a defensible unknown with an explicit
+resolution path. Never trade one of these outcomes for fewer calls or turns.
+
+### Evidence sufficiency and stopping rule
+
+Stop discovery as soon as all conditions hold:
+
+1. Every explicit requirement is covered by a finding or an identified unknown.
+2. Every blocking or high-impact `RQ-*` has verified evidence, a decision needed,
+   or a defensible unknown with a resolution path.
+3. The end-to-end flow and every applicable adversarial-risk category have been
+   checked once.
+4. The recommended direction depends on no unlabeled assumption.
+5. The latest targeted pass produced no new high-impact finding or changed
+   recommendation.
+
+After this gate, synthesize the artifact immediately. Do not continue into
+peripheral history, unrelated modules, alternative libraries, or additional
+examples merely to make the research appear exhaustive. Record deliberately
+skipped low-impact areas under `Not investigated`.
+
 ## Risk-adaptive workflow
 
 ### 1. Establish the research baseline
@@ -270,6 +335,7 @@ Return only a concise summary containing:
 - the research confidence;
 - the recommended direction in one sentence;
 - blocking unknowns or decisions; and
+- the approximate investigation-batch and evidence-source counts; and
 - confirmation that planning and implementation were not performed.
 
 Do not reproduce the artifact in the response.
