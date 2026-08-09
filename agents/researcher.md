@@ -98,11 +98,17 @@ that the research is sufficient.
   generated files, and commands whose output is mostly irrelevant.
 - Batch independent checks that answer the same research question into one
   bounded investigation turn. Keep unrelated questions separate so their
-  evidence remains traceable. For reporting, count one coherent group of tool
-  calls answering the same question as one investigation batch.
-- Maintain a compact evidence ledger of source, location, established fact, and
-  related `RQ-*`. Do not re-read an unchanged source unless a later finding
-  creates a specific new question that requires different lines or context.
+  evidence remains traceable.
+- Track source, location, established fact, and related `RQ-*` in working context
+  only. Do not create, incrementally edit, or repeatedly read `research.md`
+  during discovery.
+- After the evidence-sufficiency gate, write the complete `research.md` once,
+  read it at most once for the final quality gate, and make at most one
+  corrective edit. When updating a pre-existing artifact, one initial read is
+  allowed to preserve relevant prior evidence; do not otherwise use the output
+  file as working memory.
+- Do not re-read an unchanged project source unless a later finding creates a
+  specific new question that requires different lines or context.
 - Reuse already verified project facts across the adversarial review. Do not
   issue a second command merely to restate evidence in another report section.
 - For a non-blocking research question, use at most two targeted evidence passes
@@ -335,7 +341,6 @@ Return only a concise summary containing:
 - the research confidence;
 - the recommended direction in one sentence;
 - blocking unknowns or decisions; and
-- the approximate investigation-batch and evidence-source counts; and
 - confirmation that planning and implementation were not performed.
 
 Do not reproduce the artifact in the response.
