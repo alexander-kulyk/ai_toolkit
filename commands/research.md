@@ -54,7 +54,12 @@ Do not infer a feature automatically from unrelated repository content.
    - If the OpenSpec CLI is unavailable or scaffold creation fails, stop. Do not
      hand-create OpenSpec metadata or dispatch the researcher into an invalid
      change.
-5. Dispatch the named `researcher` agent once, in the foreground, with this
+5. Run `openspec status --change "<change-name>" --json` and verify the resolved
+   artifact graph contains a `research` artifact and that `proposal` directly
+   requires it. If not, stop and explain that the change must use the
+   `research-driven` schema. Do not create an ignored `research.md` inside a
+   schema that does not declare it.
+6. Dispatch the named `researcher` agent once, in the foreground, with this
    task:
 
    ```text
@@ -75,30 +80,31 @@ Do not infer a feature automatically from unrelated repository content.
    design, implementation plan, task decomposition, effort estimate, or product
    change.
    ```
-6. Wait for the agent's final result. Do not perform its research or edit the
+7. Wait for the agent's final result. Do not perform its research or edit the
    artifact in the command orchestrator.
-7. Treat an interrupted, partial, or failed run as incomplete. Report the
+8. Treat an interrupted, partial, or failed run as incomplete. Report the
    failure and do not claim that research was completed.
-8. Validate the completed result:
+9. Validate the completed result:
    - the reported path exactly matches the selected change's `research.md`;
    - the file exists, is readable, is non-empty Markdown, and begins with
      `# Research:`;
-   - it contains an evidence inventory, labeled findings, risks and edge cases,
-     unknowns/assumptions/decisions, research coverage, and an OpenSpec handoff;
+   - it contains answered research questions, an evidence inventory, labeled
+     findings, risks and edge cases, unknowns/assumptions/decisions, and an
+     OpenSpec handoff;
    - project-specific verified claims cite source locations;
    - it does not contain implementation stages, task IDs, delivery estimates,
      or claim that implementation was performed; and
    - no files other than the change scaffold and `research.md` were written by
      this command and agent.
-9. If validation fails, report each failed check. Do not repair or invent the
+10. If validation fails, report each failed check. Do not repair or invent the
    research in the orchestrator.
-10. If validation succeeds, return:
+11. If validation succeeds, return:
     - the selected change name;
     - a clickable path to `research.md`;
     - confidence and the recommended direction;
     - blocking unknowns or decisions; and
-    - the next action: use OpenSpec proposal generation for the same change and
-      require it to read `research.md` first.
+    - the next action: run `/opsx:propose <change-name>` for the same change;
+      the schema dependency will require it to read `research.md` first.
 
 ## Boundaries
 

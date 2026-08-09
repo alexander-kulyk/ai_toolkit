@@ -38,8 +38,8 @@ Sub-agent definitions (role, tools, workflow).
 | Agent | Purpose |
 | ----- | ------- |
 | [`researcher`](agents/researcher.md) | Investigates a proposed change and writes one evidence-based `research.md` for OpenSpec without planning, task decomposition, or implementation. |
-| [`executor`](agents/executor.md) | Plan-driven implementation executor — runs one stage per run, verifies at the plan's gate, does not commit. |
-| [`verifier`](agents/verifier.md) | Read-only stage verifier — grades the uncommitted stage changes against the plan's gate and gates the commit. |
+| [`executor`](agents/executor.md) | Source-driven implementation executor — runs one OpenSpec or plan Stage per invocation, executes its gate, and does not commit. |
+| [`verifier`](agents/verifier.md) | Read-only Stage verifier — grades uncommitted changes against the supplied specs/design/tasks or plan and gates the commit. |
 
 ### Commands — `commands/`
 
@@ -48,7 +48,7 @@ Reusable commands executed by AI agents (slash commands where supported).
 | Command | Purpose |
 | ------- | ------- |
 | [`commit`](commands/commit.md) | Stage all changes, generate a Conventional Commit message, and commit. |
-| [`implement-plan`](commands/implement-plan.md) | Execute a specification package or standalone plan through a stage-by-stage executor and verifier workflow, with local commits and optional pushing. |
+| [`implement-plan`](commands/implement-plan.md) | Execute an OpenSpec change, specification package, or standalone plan through a Stage-by-Stage executor/verifier workflow. |
 | [`research`](commands/research.md) | Initialize or reuse an OpenSpec change, run `researcher`, and save one evidence-based `research.md`. |
 
 ## How each agent loads this

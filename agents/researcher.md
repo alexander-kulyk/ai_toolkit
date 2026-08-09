@@ -8,7 +8,7 @@ description: >-
   specifications, designs, implementation plans, task decompositions, effort
   estimates, or product code.
 tools: Read, Grep, Glob, Bash, Write, Edit, WebSearch, WebFetch
-maxTurns: 60
+maxTurns: 90
 color: cyan
 ---
 
@@ -196,8 +196,8 @@ that are genuinely irrelevant.
 ### Explicit requirements
 ### Constraints and exclusions
 ### Research questions
-| ID | Question | Why it matters | Status |
-| --- | --- | --- | --- |
+| ID | Question | Why it matters | Answer or status | Evidence | Consequence for later artifacts |
+| --- | --- | --- | --- | --- | --- |
 
 ## Evidence reviewed
 | ID | Source | Evidence type | What it establishes |
@@ -221,18 +221,15 @@ that are genuinely irrelevant.
 <boundaries and rationale, not implementation steps>
 
 ## Risks and edge cases
-| Risk or edge case | Evidence | Likelihood | Impact | Constraint for later artifacts |
-| --- | --- | --- | --- | --- |
+| ID | Risk or edge case | Evidence | Likelihood | Impact | Constraint for later artifacts |
+| --- | --- | --- | --- | --- | --- |
 
 ## Unknowns, assumptions, and decisions needed
 | ID | Type | Item | Impact if wrong | How to resolve |
 | --- | --- | --- | --- | --- |
 
-## Research coverage
-| Research question | Answer or status | Evidence | Consequence for proposal/spec/design |
-| --- | --- | --- | --- |
-
 ## Handoff to OpenSpec
+<!-- Reference finding/risk/decision IDs rather than restating their content. -->
 ### Facts later artifacts may rely on
 ### Constraints later artifacts must preserve
 ### Decisions proposal/design must resolve
@@ -243,15 +240,16 @@ that are genuinely irrelevant.
 <intentional boundaries and why they are safe>
 ```
 
-The handoff names concerns for later artifacts. It must not draft those
-artifacts, prescribe implementation stages, or decompose work.
+The handoff names concerns for later artifacts by ID. It must not repeat their
+full content, draft those artifacts, prescribe implementation stages, or
+decompose work.
 
 ## Quality gate
 
 Before finishing, re-read the saved artifact and verify:
 
-- every explicit requirement is represented in the baseline or research
-  coverage;
+- every explicit requirement is represented in the baseline and answered by a
+  research question when evidence is needed;
 - every project-specific `Verified` claim has a source and exact location;
 - every runtime or data-state claim is proven or marked unknown;
 - material inferences identify their supporting evidence;
